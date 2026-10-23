@@ -308,10 +308,21 @@ async function decrypt(pw) {
   return JSON.parse(new TextDecoder().decode(plain));
 }
 async function unlockWith(pw, remember) {
-  const data = await decrypt(pw);
+  let data;
+  try {
+    data = await decrypt(pw);
+  } catch (e) {
+    // AES-GCM reports a wrong key as OperationError; anything else is the browser failing, not the password
+    throw new Error(e && e.name === 'OperationError' ? 'wrong-password' : `The browser could not unlock the map (${e && e.name}: ${e && e.message}).`);
+  }
   try { remember ? localStorage.setItem('mapPassword', pw) : localStorage.removeItem('mapPassword'); } catch (e) { /* storage blocked */ }
   $('lock').hidden = true;
-  start(data);
+  try {
+    start(data);
+  } catch (e) {
+    $('lock').hidden = false;
+    throw new Error(`The password is right, but the map failed to draw (${e && e.name}: ${e && e.message}).`);
+  }
 }
 if (!PAYLOAD.ct) {
   start(PAYLOAD);
@@ -319,13 +330,16 @@ if (!PAYLOAD.ct) {
   let saved = null;
   try { saved = localStorage.getItem('mapPassword'); } catch (e) { /* storage blocked */ }
   const ask = () => { $('lock').hidden = false; $('pw').focus(); };
+  if (!window.crypto || !crypto.subtle) $('err').textContent = 'This browser cannot unlock the map. Open the https:// link in Safari or Chrome.';
   $('show').onchange = (e) => { $('pw').type = e.target.checked ? 'text' : 'password'; };
   if (PAYLOAD.built) $('built').textContent = 'Map updated ' + new Date(PAYLOAD.built).toLocaleString();
   saved ? unlockWith(saved, true).catch(ask) : ask();
   $('unlock').onsubmit = (e) => {
     e.preventDefault();
     $('err').textContent = '';
-    unlockWith($('pw').value.trim(), $('remember').checked).catch(() => { $('err').textContent = 'Wrong password. Try again.'; });
+    unlockWith($('pw').value.trim(), $('remember').checked).catch((err) => {
+      $('err').textContent = err.message === 'wrong-password' ? 'Wrong password. Try again.' : err.message;
+    });
   };
 }
 </script>
