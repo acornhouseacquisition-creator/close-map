@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>All Houses Map</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<style>
+  /* Layout: lead list on the left, full-height map on the right; one dark look to match the single-house map */
+  :root{
+    --ink:#0f1317;--panel:#161b21;--raise:#1e252d;--line:rgba(255,255,255,.09);
+    --fg:#eef2f5;--muted:#8d98a4;--accent:#2f81f7;
+    --green:#2fb36b;--yellow:#f2c230;--red:#e5484d;--white:#d9dee3;--grey:#7d8792;--orange:#f08c2e;--blue:#3d8bfd;--purple:#9b6cf0;
+    color-scheme:dark}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--ink);color:var(--fg);font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  .app{display:flex;height:100%}
+  aside{width:340px;flex:none;display:flex;flex-direction:column;background:var(--panel);border-right:1px solid var(--line);min-width:0}
+  .head{padding:16px 16px 10px;display:grid;gap:10px}
+  .head h1{margin:0;font-size:17px;letter-spacing:.01em}
+  .head .sum{color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
+  #q{width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--line);background:var(--raise);color:var(--fg);font-size:14px}
+  #q:focus{outline:2px solid var(--accent);outline-offset:-1px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;padding:0 16px 12px;border-bottom:1px solid var(--line)}
+  .chip{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:999px;border:1px solid var(--line);background:var(--raise);color:var(--fg);font-size:12px;cursor:pointer}
+  .chip.off{opacity:.38}
+  .chip b{font-weight:600;color:var(--muted);font-variant-numeric:tabular-nums}
+  .dot{width:9px;height:9px;border-radius:50%;flex:none}
+  .list{flex:1;overflow:auto}
+  .item{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;padding:11px 16px;border-bottom:1px solid var(--line);cursor:pointer}
+  .item:hover,.item:focus-visible{background:var(--raise);outline:none}
+  .item .dot{margin-top:5px}
+  .item b{font-weight:600}
+  .item small{grid-column:2;color:var(--muted);font-size:12px}
+  .foot{padding:10px 16px;border-top:1px solid var(--line);color:var(--muted);font-size:11px}
+  main{flex:1;position:relative;min-width:0}
+  #map{position:absolute;inset:0;background:#26302a}
+  .layers{position:absolute;right:16px;top:16px;z-index:500;display:flex;background:rgba(22,27,33,.92);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .layers button{background:none;border:0;color:#cfd6dd;padding:8px 13px;font-size:13px;font-weight:600;cursor:pointer}
+  .layers button.on{background:var(--accent);color:#fff}
+  .layers label{display:flex;align-items:center;gap:6px;padding:0 12px;font-size:13px;color:#cfd6dd;border-left:1px solid var(--line)}
+
+  /* pins */
+  .pin{display:flex;align-items:center;gap:5px;white-space:nowrap;transform:translate(-9px,-22px)}
+  .pin i{flex:none;width:18px;height:18px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.5)}
+  .pin span{font:600 11px/1.2 -apple-system,sans-serif;background:rgba(15,19,23,.86);color:#fff;padding:3px 6px;border-radius:5px;transform:translateY(-4px)}
+  .nolabels .pin span{display:none}
+  .cluster{display:flex;align-items:center;justify-content:center;border-radius:50%;background:rgba(47,129,247,.9);color:#fff;font-weight:700;border:3px solid rgba(255,255,255,.85);box-shadow:0 2px 8px rgba(0,0,0,.45)}
+
+  /* pop-up card */
+  .leaflet-popup-content-wrapper{background:var(--panel);color:var(--fg);border-radius:14px;border:1px solid var(--line);box-shadow:0 14px 34px rgba(0,0,0,.5)}
+  .leaflet-popup-tip{background:var(--panel)}
+  .leaflet-popup-content{margin:0;width:310px!important}
+  .leaflet-container a.leaflet-popup-close-button{color:var(--muted);top:8px;right:8px}
+  .card{display:grid;gap:12px;padding:16px}
+  .pill{justify-self:start;display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:4px 9px;border-radius:999px;background:var(--raise)}
+  .card h2{margin:0;font-size:17px;line-height:1.25;text-wrap:balance}
+  .card .city{color:var(--muted);font-size:13px;margin-top:2px}
+  .rows{display:grid;gap:7px;border-top:1px solid var(--line);padding-top:12px}
+  .r{display:grid;grid-template-columns:86px 1fr auto;gap:8px;align-items:center;font-size:13px}
+  .r .k{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+  .r .v{min-width:0;overflow-wrap:anywhere}
+  .r .v a{color:var(--fg);text-decoration:none}
+  .r .v a:hover{text-decoration:underline}
+  .copy{border:1px solid var(--line);background:var(--raise);color:var(--muted);border-radius:6px;font-size:11px;padding:3px 7px;cursor:pointer}
+  .copy:hover{color:var(--fg)}
+  .none{color:var(--muted);font-style:italic}
+  .btns{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+  .btn{display:flex;align-items:center;justify-content:center;padding:8px 6px;border-radius:8px;background:var(--raise);border:1px solid var(--line);color:var(--fg)!important;text-decoration:none;font-size:12px;font-weight:600}
+  .btn:hover{background:#28313b}
+  .btn.primary{background:var(--accent);border-color:var(--accent)}
+  .toast{position:absolute;left:50%;bottom:28px;transform:translateX(-50%);z-index:900;background:#fff;color:#111;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;opacity:0;transition:opacity .2s;pointer-events:none}
+  .toast.show{opacity:1}
+  @media (max-width:760px){
+    .app{flex-direction:column-reverse}
+    aside{width:auto;height:42%;border-right:0;border-top:1px solid var(--line)}
+    .leaflet-popup-content{width:270px!important}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <div class="head">
+      <h1>All Houses</h1>
+      <div class="sum" id="sum"></div>
+      <input id="q" type="search" placeholder="Search address, seller, phone, status…" autocomplete="off">
+    </div>
+    <div class="chips" id="chips"></div>
+    <div class="list" id="list"></div>
+    <div class="foot" id="foot"></div>
+  </aside>
+  <main>
+    <div id="map"></div>
+    <div class="layers">
+      <button data-l="sat" class="on">Satellite</button>
+      <button data-l="map">Map</button>
+      <label><input type="checkbox" id="labels" checked> Labels</label>
+    </div>
+    <div class="toast" id="toast">Copied</div>
+  </main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"></script>
+<script>
+const DATA = /*__DATA__*/null;
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const enc = encodeURIComponent;
+const toneVar = (t) => `var(--${t})`;
+const plainStatus = (s) => s.replace(/^[^\p{L}\p{N}$]+/u, '').trim();
+
+// ---- map ----
+const esri = (s) => `https://server.arcgisonline.com/ArcGIS/rest/services/${s}/MapServer/tile/{z}/{y}/{x}`;
+const sat = L.tileLayer(esri('World_Imagery'), { maxNativeZoom: 19, maxZoom: 20, attribution: 'Imagery © Esri' });
+const roads = L.tileLayer(esri('Reference/World_Transportation'), { maxNativeZoom: 19, maxZoom: 20 });
+const street = L.tileLayer(esri('World_Street_Map'), { maxNativeZoom: 19, maxZoom: 20, attribution: '© Esri' });
+const map = L.map('map', { zoomControl: false, layers: [sat, roads] }).setView([38.5, -81], 6);
+L.control.zoom({ position: 'bottomright' }).addTo(map);
+document.querySelectorAll('.layers button').forEach((b) => b.onclick = () => {
+  document.querySelectorAll('.layers button').forEach((x) => x.classList.toggle('on', x === b));
+  [sat, roads, street].forEach((l) => map.removeLayer(l));
+  (b.dataset.l === 'sat' ? [sat, roads] : [street]).forEach((l) => l.addTo(map));
+});
+$('labels').onchange = (e) => $('map').classList.toggle('nolabels', !e.target.checked);
+
+const cluster = L.markerClusterGroup({
+  maxClusterRadius: 45, disableClusteringAtZoom: 14, showCoverageOnHover: false,
+  iconCreateFunction: (c) => {
+    const n = c.getChildCount(), size = n < 10 ? 34 : n < 50 ? 42 : 52;
+    return L.divIcon({ className: '', iconSize: [size, size], html: `<div class="cluster" style="width:${size}px;height:${size}px">${n}</div>` });
+  },
+});
+map.addLayer(cluster);
+
+// ---- pop-up card ----
+function row(label, value, copyText) {
+  const v = value ? value : '<span class="none">Not in Close</span>';
+  const c = copyText ? `<button class="copy" data-copy="${esc(copyText)}">Copy</button>` : '<span></span>';
+  return `<div class="r"><span class="k">${label}</span><span class="v">${v}</span>${c}</div>`;
+}
+
+function card(d) {
+  const [street, ...rest] = d.addr.split(',');
+  const q = enc(d.addr);
+  const phones = d.phones.length ? d.phones.map((p) => row('Phone', `<a href="tel:${esc(p.replace(/[^\d+]/g, ''))}">${esc(p)}</a>`, p)).join('') : row('Phone', '');
+  const emails = d.emails.length ? d.emails.map((e) => row('Email', `<a href="mailto:${esc(e)}">${esc(e)}</a>`, e)).join('') : row('Email', '');
+  const opp = d.opp ? esc(plainStatus(d.opp.status)) + (d.opp.value ? ` · <b>${esc(d.opp.value)}</b>` : '') : '';
+  return `<div class="card">
+    <span class="pill"><span class="dot" style="background:${toneVar(d.tone)}"></span>${esc(plainStatus(d.status))}</span>
+    <div><h2>${esc(street)}</h2><div class="city">${esc(rest.join(',').trim())}</div></div>
+    <div class="rows">
+      ${row('Seller', esc(d.name))}
+      ${phones}
+      ${emails}
+      ${row('Opportunity', opp)}
+      ${row('Address', esc(d.addr), d.addr)}
+    </div>
+    <div class="btns">
+      <a class="btn primary" href="closeio://app.close.com/lead/${esc(d.id)}/">Open in Close</a>
+      <a class="btn" href="${DATA.liveMap}#a=${q}&s=${enc(d.status)}" target="_blank" rel="noopener">House map</a>
+      <a class="btn" href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${d.pt[0]},${d.pt[1]}" target="_blank" rel="noopener">Street View</a>
+      <a class="btn" href="https://www.zillow.com/homes/${q.replace(/%20/g, '-')}_rb/" target="_blank" rel="noopener">Zillow</a>
+      <a class="btn" href="https://propwire.com/search?q=${q}" target="_blank" rel="noopener">Propwire</a>
+      <a class="btn" href="https://app.close.com/lead/${esc(d.id)}/" target="_blank" rel="noopener">Close (web)</a>
+    </div>
+  </div>`;
+}
+
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('.copy');
+  if (!b) return;
+  try { await navigator.clipboard.writeText(b.dataset.copy); } catch (err) { /* older Safari */ }
+  $('toast').classList.add('show');
+  setTimeout(() => $('toast').classList.remove('show'), 1100);
+});
+
+// ---- data ----
+const leads = DATA.leads.map((d) => {
+  d.search = [d.addr, d.name, d.status, ...(d.phones || []), ...(d.emails || []), d.opp?.status].join(' ').toLowerCase();
+  const label = esc(d.addr.split(',')[0]);
+  d.marker = L.marker(d.pt, { icon: L.divIcon({ className: '', iconSize: null, html: `<div class="pin"><i style="background:${toneVar(d.tone)}"></i><span>${label}</span></div>` }) })
+    .bindPopup(() => card(d), { maxWidth: 330, autoPanPadding: [30, 30] });
+  return d;
+});
+
+let hidden = new Set();
+try { hidden = new Set(JSON.parse(localStorage.getItem('hiddenStatuses') || '[]')); } catch (e) { /* storage blocked */ }
+
+function render() {
+  const q = $('q').value.trim().toLowerCase();
+  const visible = leads.filter((d) => !hidden.has(d.status) && (!q || d.search.includes(q)));
+
+  const counts = {};
+  leads.forEach((d) => { counts[d.status] = (counts[d.status] || 0) + 1; });
+  $('chips').innerHTML = Object.keys(counts).sort((a, b) => counts[b] - counts[a]).map((s) => {
+    const t = leads.find((d) => d.status === s).tone;
+    return `<button class="chip ${hidden.has(s) ? 'off' : ''}" data-s="${esc(s)}"><span class="dot" style="background:${toneVar(t)}"></span>${esc(plainStatus(s))} <b>${counts[s]}</b></button>`;
+  }).join('');
+  $('chips').querySelectorAll('.chip').forEach((c) => c.onclick = () => {
+    hidden.has(c.dataset.s) ? hidden.delete(c.dataset.s) : hidden.add(c.dataset.s);
+    try { localStorage.setItem('hiddenStatuses', JSON.stringify([...hidden])); } catch (e) { /* storage blocked */ }
+    render();
+  });
+
+  cluster.clearLayers();
+  cluster.addLayers(visible.map((d) => d.marker));
+  $('sum').textContent = `${visible.length} of ${leads.length} houses shown`;
+  $('list').innerHTML = visible.map((d, i) => `<div class="item" tabindex="0" data-i="${i}">
+      <span class="dot" style="background:${toneVar(d.tone)}"></span>
+      <b>${esc(d.addr.split(',')[0])}</b>
+      <small>${esc(d.name || 'No seller name')} · ${esc(plainStatus(d.status))}</small>
+    </div>`).join('') || '<div class="item"><small>No houses match.</small></div>';
+  $('list').querySelectorAll('.item[data-i]').forEach((el) => {
+    const go = () => {
+      const d = visible[Number(el.dataset.i)];
+      map.once('moveend', () => cluster.zoomToShowLayer(d.marker, () => d.marker.openPopup()));
+      map.flyTo(d.pt, 18, { duration: 1.2 });
+    };
+    el.onclick = go;
+    el.onkeydown = (e) => { if (e.key === 'Enter') go(); };
+  });
+}
+
+$('q').oninput = render;
+render();
+if (leads.length) map.fitBounds(leads.map((d) => d.pt), { padding: [40, 40], maxZoom: 13 });
+$('foot').textContent = DATA.missing.length ? `${DATA.missing.length} addresses could not be found on the map.` : 'Every address was found on the map.';
+</script>
+</body>
+</html>
