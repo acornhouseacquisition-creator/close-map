@@ -1,0 +1,49 @@
+# Rebuilds the password-locked all-houses map from Close every 15 minutes and publishes it with map.html.
+# Needs two repository secrets: CLOSE_API_KEY and MAP_PASSWORD. Logs are public, so the build prints counts only.
+name: Build maps
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests pillow cryptography
+      - name: Build locked map
+        env:
+          CLOSE_API_KEY: ${{ secrets.CLOSE_API_KEY }}
+          MAP_PASSWORD: ${{ secrets.MAP_PASSWORD }}
+        run: |
+          python build_lead_map.py --out _site/houses.html --encrypt
+          cp map.html _site/map.html
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

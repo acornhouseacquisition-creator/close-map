@@ -8,3 +8,5 @@ geocode-cache.json
 __pycache__/
 .DS_Store
 private/
+map-password.txt
+_site/

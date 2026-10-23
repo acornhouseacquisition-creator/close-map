@@ -86,9 +86,28 @@
     .leaflet-popup-content{width:270px!important}
   }
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+  /* password screen for the online copy */
+  .lock{position:fixed;inset:0;z-index:2000;display:flex;align-items:center;justify-content:center;background:var(--ink);padding:0 max(16px, env(safe-area-inset-left, 0px))}
+  .lock form{width:100%;max-width:340px;display:grid;gap:12px;padding:24px;background:var(--panel);border:1px solid var(--line);border-radius:14px}
+  .lock h1{margin:0;font-size:19px}
+  .lock p{margin:0;color:var(--muted);font-size:13px}
+  .lock input[type=password]{width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--raise);color:var(--fg);font-size:16px}
+  .lock label{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+  .lock button{padding:11px;border:0;border-radius:8px;background:var(--accent);color:#fff;font-size:15px;font-weight:600;cursor:pointer}
+  .lock .err{color:var(--red);font-size:13px;min-height:1em}
 </style>
 </head>
 <body>
+<div class="lock" id="lock" hidden>
+  <form id="unlock">
+    <h1>All Houses</h1>
+    <p>Enter the map password to see your leads.</p>
+    <input id="pw" type="password" autocomplete="current-password" placeholder="Password" required>
+    <label><input id="remember" type="checkbox" checked> Remember on this device</label>
+    <button type="submit">Open map</button>
+    <div class="err" id="err"></div>
+  </form>
+</div>
 <div class="app">
   <aside>
     <div class="head">
@@ -118,8 +137,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"></script>
 <script>
-const DATA = /*__DATA__*/null;
 const $ = (id) => document.getElementById(id);
+function start(DATA) {
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const enc = encodeURIComponent;
 const toneVar = (t) => `var(--${t})`;
@@ -273,6 +292,38 @@ $('q').oninput = render;
 setMode(mode);
 if (leads.length) map.fitBounds(leads.map((d) => d.pt), { padding: [40, 40], maxZoom: 13 });
 $('foot').textContent = DATA.missing.length ? `${DATA.missing.length} addresses could not be found on the map.` : 'Every address was found on the map.';
+$('foot').textContent += ` Updated ${new Date(DATA.built).toLocaleString()}.`;
+}
+
+// The online copy holds the leads encrypted (AES-GCM, key from the password via PBKDF2); the Mac copy is plain.
+const PAYLOAD = /*__DATA__*/null;
+const bytes = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+async function decrypt(pw) {
+  const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveKey']);
+  const key = await crypto.subtle.deriveKey({ name: 'PBKDF2', salt: bytes(PAYLOAD.salt), iterations: PAYLOAD.iter, hash: 'SHA-256' },
+    base, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: bytes(PAYLOAD.iv) }, key, bytes(PAYLOAD.ct));
+  return JSON.parse(new TextDecoder().decode(plain));
+}
+async function unlockWith(pw, remember) {
+  const data = await decrypt(pw);
+  try { remember ? localStorage.setItem('mapPassword', pw) : localStorage.removeItem('mapPassword'); } catch (e) { /* storage blocked */ }
+  $('lock').hidden = true;
+  start(data);
+}
+if (!PAYLOAD.ct) {
+  start(PAYLOAD);
+} else {
+  let saved = null;
+  try { saved = localStorage.getItem('mapPassword'); } catch (e) { /* storage blocked */ }
+  const ask = () => { $('lock').hidden = false; $('pw').focus(); };
+  saved ? unlockWith(saved, true).catch(ask) : ask();
+  $('unlock').onsubmit = (e) => {
+    e.preventDefault();
+    $('err').textContent = '';
+    unlockWith($('pw').value, $('remember').checked).catch(() => { $('err').textContent = 'Wrong password. Try again.'; });
+  };
+}
 </script>
 </body>
 </html>
