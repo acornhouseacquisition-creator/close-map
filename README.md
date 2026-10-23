@@ -9,7 +9,7 @@ A live satellite map of one house, with the pin on the roof. It has Satellite / 
 It opens from a Close **Integration Link** (Settings → Customization → Integration Links → Lead type):
 
 ```
-https://acornhouseacquisition-creator.github.io/acorn-crm-tools/map.html#a={{lead.display_name}}&s={{lead.status_label}}
+https://acornhouseacquisition-creator.github.io/close-map/map.html#a={{lead.display_name}}&s={{lead.status_label}}
 ```
 
 The address is passed after the `#`, so it never reaches GitHub's servers. The page stores no lead data.
