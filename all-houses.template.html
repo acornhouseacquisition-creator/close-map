@@ -11,7 +11,7 @@
   :root{
     --ink:#0f1317;--panel:#161b21;--raise:#1e252d;--line:rgba(255,255,255,.09);
     --fg:#eef2f5;--muted:#8d98a4;--accent:#2f81f7;
-    --green:#2fb36b;--yellow:#f2c230;--red:#e5484d;--white:#d9dee3;--grey:#7d8792;--orange:#f08c2e;--blue:#3d8bfd;--purple:#9b6cf0;
+    --green:#2fb36b;--yellow:#f2c230;--red:#e5484d;--white:#d9dee3;--grey:#7d8792;--orange:#f08c2e;--blue:#3d8bfd;--purple:#9b6cf0;--teal:#20b2aa;--pink:#e05fa8;--lost:#6b7480;--noopp:#3a424b;
     color-scheme:dark}
   *{box-sizing:border-box}
   html,body{margin:0;height:100%;background:var(--ink);color:var(--fg);font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
@@ -20,6 +20,14 @@
   .head{padding:16px 16px 10px;display:grid;gap:10px}
   .head h1{margin:0;font-size:17px;letter-spacing:.01em}
   .head .sum{color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
+  .mode{display:grid;grid-template-columns:1fr 1fr;background:var(--raise);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .mode button{background:none;border:0;color:var(--muted);padding:7px 6px;font-size:12px;font-weight:600;cursor:pointer}
+  .mode button.on{background:var(--accent);color:#fff}
+  .tag{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+  .opp{display:grid;gap:6px;padding:10px 12px;border-radius:10px;background:var(--raise);border:1px solid var(--line)}
+  .opp .top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .opp .name{display:flex;align-items:center;gap:8px;font-weight:600;font-size:14px}
+  .opp .val{font-variant-numeric:tabular-nums;font-weight:700}
   #q{width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--line);background:var(--raise);color:var(--fg);font-size:14px}
   #q:focus{outline:2px solid var(--accent);outline-offset:-1px}
   .chips{display:flex;flex-wrap:wrap;gap:6px;padding:0 16px 12px;border-bottom:1px solid var(--line)}
@@ -86,6 +94,10 @@
     <div class="head">
       <h1>All Houses</h1>
       <div class="sum" id="sum"></div>
+      <div class="mode" role="group" aria-label="Color pins by">
+        <button data-m="opp" class="on">Opportunity status</button>
+        <button data-m="lead">Lead status</button>
+      </div>
       <input id="q" type="search" placeholder="Search address, seller, phone, status…" autocomplete="off">
     </div>
     <div class="chips" id="chips"></div>
@@ -143,20 +155,38 @@ function row(label, value, copyText) {
   return `<div class="r"><span class="k">${label}</span><span class="v">${v}</span>${c}</div>`;
 }
 
+// Opportunity colours: won = green, lost = grey, each active stage gets its own colour
+const ACTIVE = ['blue', 'purple', 'orange', 'yellow', 'teal', 'pink'];
+const activeStages = [...new Set(DATA.leads.filter((d) => d.opp?.type === 'active').map((d) => d.opp.status))].sort();
+const oppTone = (d) => !d.opp ? 'noopp' : d.opp.type === 'won' ? 'green' : d.opp.type === 'lost' ? 'lost'
+  : ACTIVE[activeStages.indexOf(d.opp.status) % ACTIVE.length];
+const TYPE = { active: 'Active', won: 'Won', lost: 'Lost' };
+
+let mode = 'opp';
+try { mode = localStorage.getItem('colorBy') || 'opp'; } catch (e) { /* storage blocked */ }
+const groupOf = (d) => mode === 'opp' ? (d.opp ? d.opp.status : 'No opportunity') : d.status;
+const toneOf = (d) => mode === 'opp' ? oppTone(d) : d.tone;
+
 function card(d) {
   const [street, ...rest] = d.addr.split(',');
   const q = enc(d.addr);
   const phones = d.phones.length ? d.phones.map((p) => row('Phone', `<a href="tel:${esc(p.replace(/[^\d+]/g, ''))}">${esc(p)}</a>`, p)).join('') : row('Phone', '');
   const emails = d.emails.length ? d.emails.map((e) => row('Email', `<a href="mailto:${esc(e)}">${esc(e)}</a>`, e)).join('') : row('Email', '');
-  const opp = d.opp ? esc(plainStatus(d.opp.status)) + (d.opp.value ? ` · <b>${esc(d.opp.value)}</b>` : '') : '';
+  const opp = d.opp
+    ? `<div class="opp">
+        <div class="top"><span class="tag">Opportunity status</span><span class="tag">${TYPE[d.opp.type] || ''}</span></div>
+        <div class="top"><span class="name"><span class="dot" style="background:${toneVar(oppTone(d))}"></span>${esc(plainStatus(d.opp.status))}</span>
+        ${d.opp.value ? `<span class="val">${esc(d.opp.value)}</span>` : ''}</div>
+      </div>`
+    : '<div class="opp"><span class="tag">Opportunity status</span><span class="none">No opportunity in Close</span></div>';
   return `<div class="card">
     <span class="pill"><span class="dot" style="background:${toneVar(d.tone)}"></span>${esc(plainStatus(d.status))}</span>
     <div><h2>${esc(street)}</h2><div class="city">${esc(rest.join(',').trim())}</div></div>
+    ${opp}
     <div class="rows">
       ${row('Seller', esc(d.name))}
       ${phones}
       ${emails}
-      ${row('Opportunity', opp)}
       ${row('Address', esc(d.addr), d.addr)}
     </div>
     <div class="btns">
@@ -181,28 +211,42 @@ document.addEventListener('click', async (e) => {
 // ---- data ----
 const leads = DATA.leads.map((d) => {
   d.search = [d.addr, d.name, d.status, ...(d.phones || []), ...(d.emails || []), d.opp?.status].join(' ').toLowerCase();
-  const label = esc(d.addr.split(',')[0]);
-  d.marker = L.marker(d.pt, { icon: L.divIcon({ className: '', iconSize: null, html: `<div class="pin"><i style="background:${toneVar(d.tone)}"></i><span>${label}</span></div>` }) })
-    .bindPopup(() => card(d), { maxWidth: 330, autoPanPadding: [30, 30] });
+  d.marker = L.marker(d.pt).bindPopup(() => card(d), { maxWidth: 330, autoPanPadding: [30, 30] });
   return d;
 });
 
+const pinIcon = (d) => L.divIcon({ className: '', iconSize: null,
+  html: `<div class="pin"><i style="background:${toneVar(toneOf(d))}"></i><span>${esc(d.addr.split(',')[0])}</span></div>` });
+const hiddenKey = () => 'hidden-' + mode;
 let hidden = new Set();
-try { hidden = new Set(JSON.parse(localStorage.getItem('hiddenStatuses') || '[]')); } catch (e) { /* storage blocked */ }
+function loadHidden() {
+  try { hidden = new Set(JSON.parse(localStorage.getItem(hiddenKey()) || '[]')); } catch (e) { hidden = new Set(); }
+}
+function setMode(m) {
+  mode = m;
+  try { localStorage.setItem('colorBy', m); } catch (e) { /* storage blocked */ }
+  document.querySelectorAll('.mode button').forEach((b) => b.classList.toggle('on', b.dataset.m === m));
+  leads.forEach((d) => d.marker.setIcon(pinIcon(d)));
+  loadHidden();
+  render();
+}
+document.querySelectorAll('.mode button').forEach((b) => b.onclick = () => setMode(b.dataset.m));
 
 function render() {
   const q = $('q').value.trim().toLowerCase();
-  const visible = leads.filter((d) => !hidden.has(d.status) && (!q || d.search.includes(q)));
+  const visible = leads.filter((d) => !hidden.has(groupOf(d)) && (!q || d.search.includes(q)));
 
   const counts = {};
-  leads.forEach((d) => { counts[d.status] = (counts[d.status] || 0) + 1; });
-  $('chips').innerHTML = Object.keys(counts).sort((a, b) => counts[b] - counts[a]).map((s) => {
-    const t = leads.find((d) => d.status === s).tone;
+  leads.forEach((d) => { counts[groupOf(d)] = (counts[groupOf(d)] || 0) + 1; });
+  // In opportunity mode list active stages first, then won, lost and leads without one
+  const rank = (s) => { const d = leads.find((x) => groupOf(x) === s); return mode !== 'opp' ? 0 : !d.opp ? 3 : { active: 0, won: 1, lost: 2 }[d.opp.type] ?? 0; };
+  $('chips').innerHTML = Object.keys(counts).sort((a, b) => rank(a) - rank(b) || counts[b] - counts[a]).map((s) => {
+    const t = toneOf(leads.find((d) => groupOf(d) === s));
     return `<button class="chip ${hidden.has(s) ? 'off' : ''}" data-s="${esc(s)}"><span class="dot" style="background:${toneVar(t)}"></span>${esc(plainStatus(s))} <b>${counts[s]}</b></button>`;
   }).join('');
   $('chips').querySelectorAll('.chip').forEach((c) => c.onclick = () => {
     hidden.has(c.dataset.s) ? hidden.delete(c.dataset.s) : hidden.add(c.dataset.s);
-    try { localStorage.setItem('hiddenStatuses', JSON.stringify([...hidden])); } catch (e) { /* storage blocked */ }
+    try { localStorage.setItem(hiddenKey(), JSON.stringify([...hidden])); } catch (e) { /* storage blocked */ }
     render();
   });
 
@@ -210,9 +254,9 @@ function render() {
   cluster.addLayers(visible.map((d) => d.marker));
   $('sum').textContent = `${visible.length} of ${leads.length} houses shown`;
   $('list').innerHTML = visible.map((d, i) => `<div class="item" tabindex="0" data-i="${i}">
-      <span class="dot" style="background:${toneVar(d.tone)}"></span>
+      <span class="dot" style="background:${toneVar(toneOf(d))}"></span>
       <b>${esc(d.addr.split(',')[0])}</b>
-      <small>${esc(d.name || 'No seller name')} · ${esc(plainStatus(d.status))}</small>
+      <small>${esc(d.name || 'No seller name')} · ${esc(plainStatus(groupOf(d)))}</small>
     </div>`).join('') || '<div class="item"><small>No houses match.</small></div>';
   $('list').querySelectorAll('.item[data-i]').forEach((el) => {
     const go = () => {
@@ -226,7 +270,7 @@ function render() {
 }
 
 $('q').oninput = render;
-render();
+setMode(mode);
 if (leads.length) map.fitBounds(leads.map((d) => d.pt), { padding: [40, 40], maxZoom: 13 });
 $('foot').textContent = DATA.missing.length ? `${DATA.missing.length} addresses could not be found on the map.` : 'Every address was found on the map.';
 </script>

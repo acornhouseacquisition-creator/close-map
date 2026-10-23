@@ -48,7 +48,8 @@ def record(lead, pt):
         'name': c.get('name') or c.get('display_name') or '',
         'phones': [p.get('phone_formatted') or p.get('phone') for p in c.get('phones') or []],
         'emails': [e.get('email') for e in c.get('emails') or []],
-        'opp': {'status': opp.get('status_label') or '', 'value': opp.get('value_formatted') or ''} if opp else None,
+        'opp': {'status': opp.get('status_label') or '', 'type': opp.get('status_type') or '',
+                'value': opp.get('value_formatted') or ''} if opp else None,
         'updated': (lead.get('date_updated') or '')[:10],
     }
 
