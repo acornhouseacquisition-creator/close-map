@@ -78,7 +78,8 @@ def main():
     args = ap.parse_args()
     password = os.environ.get('MAP_PASSWORD', '')
     if args.encrypt and len(password) < 12:
-        raise SystemExit('The MAP_PASSWORD secret is missing or shorter than 12 characters: '
+        # "::error::" makes GitHub show the message on the build's summary page
+        raise SystemExit('::error::The MAP_PASSWORD secret is missing or shorter than 12 characters: '
                          'update it under Settings > Secrets and variables > Actions')
 
     geo = m.load(m.GEO_FILE, {})
