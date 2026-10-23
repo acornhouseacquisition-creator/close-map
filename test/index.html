@@ -1,0 +1,56 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Close Maps test</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"></script>
+<style>body{font-family:sans-serif;margin:0;display:flex}.side{width:540px;padding:16px;background:#fafafa}.sec{border:1px solid #ddd;border-radius:8px;margin-bottom:12px;background:#fff}.sec h4{margin:0;padding:10px;background:#eee;font-size:13px}.sec div{padding:10px}</style>
+<script>
+// Fake Tampermonkey API + fake Close API for local testing only
+const store = {};
+window.GM_getValue = (k, d) => (k in store ? store[k] : d);
+window.GM_setValue = (k, v) => { store[k] = v; };
+window.GM_addStyle = (css) => { const s = document.createElement('style'); s.textContent = css; document.head.appendChild(s); };
+window.GM_getResourceText = () => { throw new Error('n/a'); };
+const COORDS = {
+  '100 main st': [40.1795, -82.9907], '200 oak ave': [41.1421, -81.4934], '4512 glenwood ave': [35.8410, -78.6780],
+  '880 e main st': [39.9580, -82.9790], '15 elm st': [36.0726, -79.7920], '301 s tryon st': [35.2250, -80.8460],
+};
+window.GM_xmlhttpRequest = (o) => {
+  const addr = decodeURIComponent(o.url.split('address=')[1] || '').toLowerCase();
+  const key = Object.keys(COORDS).find((k) => addr.startsWith(k));
+  const body = key ? { result: { addressMatches: [{ coordinates: { y: COORDS[key][0], x: COORDS[key][1] } }] } } : { result: { addressMatches: [] } };
+  setTimeout(() => o.onload({ status: 200, responseText: JSON.stringify(body) }), 80);
+};
+const LEADS = [
+  { id: 'lead_test1', display_name: '100 Main St, Columbus, OH 43215', status_label: 'ISpeedToLead', addresses: [], description: 'Owner occupied, wants a fast sale.', contacts: [{ name: 'Sample Seller', phones: [{ phone: '+16145550101', phone_formatted: '(614) 555-0101' }] }], opportunities: [{ value: 31500000, value_formatted: '$315,000' }], 'custom.cf_1': 'East Maple Leads', 'custom.cf_2': 'Seller' },
+  { id: 'lead_test2', display_name: 'Pat Example', status_label: 'Cash Offer Sent', addresses: [{ address_1: '200 Oak Ave', city: 'Akron', state: 'OH', zipcode: '44308' }], contacts: [{ name: 'Pat Example', phones: [] }], opportunities: [], 'custom.cf_3': '145000' },
+  { id: 'lead_test3', display_name: '4512 Glenwood Ave, Raleigh, NC 27612', status_label: 'SUBTO', addresses: [], contacts: [], opportunities: [] },
+  { id: 'lead_test4', display_name: '880 E Main St, Columbus, OH 43205', status_label: 'Cash Offer Sent', addresses: [], contacts: [], opportunities: [{ value: 8900000 }] },
+  { id: 'lead_test5', display_name: '15 Elm St, Greensboro, NC 27401', status_label: 'LOI', addresses: [], contacts: [], opportunities: [] },
+  { id: 'lead_test6', display_name: '301 S Tryon St, Charlotte, NC 28202', status_label: 'ISpeedToLead', addresses: [], contacts: [], opportunities: [] },
+  { id: 'lead_test7', display_name: 'John Smith (no address)', status_label: 'LOI', addresses: [], contacts: [], opportunities: [] },
+];
+const realFetch = window.fetch;
+window.fetch = async (url) => {
+  const u = String(url);
+  if (!u.startsWith('/api/v1/')) return realFetch(url);
+  const json = (b) => new Response(JSON.stringify(b), { status: 200 });
+  if (u.includes('custom_field/lead')) return json({ data: [{ id: 'cf_1', name: 'Lead Source' }, { id: 'cf_2', name: 'Lead Type' }, { id: 'cf_3', name: 'Asking Price' }] });
+  const m = u.match(/lead\/(lead_\w+)\//);
+  if (m) return json(LEADS.find((l) => l.id === m[1]));
+  return json({ data: LEADS, has_more: false });
+};
+history.replaceState(null, '', '/lead/lead_test1/');
+</script>
+</head><body>
+<div class="side">
+  <div class="sec"><h4>ABOUT</h4><div>100 Main St, Columbus, OH 43215</div></div>
+  <div class="sec"><h4>OPPORTUNITIES</h4><div>1</div></div>
+  <div class="sec"><h4>CONTACTS</h4><div>Sample Seller</div></div>
+  <div class="sec"><h4><span>Custom Fields</span></h4><div>Lead Source: East Maple Leads</div></div>
+</div>
+<div style="flex:1;padding:16px">Activity feed…</div>
+<script src="/close-maps.user.js"></script>
+</body></html>

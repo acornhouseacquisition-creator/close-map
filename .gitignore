@@ -1,0 +1,9 @@
+# secrets and lead data — never upload
+close-key.txt
+map-notes-state.json
+geocode-cache.json
+*.csv
+
+.venv/
+__pycache__/
+.DS_Store
