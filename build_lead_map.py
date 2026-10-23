@@ -78,7 +78,8 @@ def main():
     args = ap.parse_args()
     password = os.environ.get('MAP_PASSWORD', '')
     if args.encrypt and len(password) < 12:
-        raise SystemExit('MAP_PASSWORD must be set and at least 12 characters')
+        raise SystemExit('The MAP_PASSWORD secret is missing or shorter than 12 characters: '
+                         'update it under Settings > Secrets and variables > Actions')
 
     geo = m.load(m.GEO_FILE, {})
     leads = [l for l in fetch_leads() if m.lead_address(l)]

@@ -21,7 +21,11 @@ from PIL import Image, ImageDraw, ImageFont
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 # On GitHub the key comes from the CLOSE_API_KEY secret; on the Mac from close-key.txt
-KEY = os.environ.get('CLOSE_API_KEY') or open(os.path.join(HERE, 'close-key.txt')).read().strip()
+KEY = os.environ.get('CLOSE_API_KEY', '').strip()
+if not KEY:
+    if os.environ.get('GITHUB_ACTIONS'):
+        raise SystemExit('The CLOSE_API_KEY secret is missing: add it under Settings > Secrets and variables > Actions')
+    KEY = open(os.path.join(HERE, 'close-key.txt')).read().strip()
 STATE_FILE = os.path.join(HERE, 'map-notes-state.json')
 GEO_FILE = os.path.join(HERE, 'geocode-cache.json')
 API = 'https://api.close.com/api/v1/'
