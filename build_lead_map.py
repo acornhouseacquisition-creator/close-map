@@ -98,7 +98,9 @@ def main():
     data = {'leads': rows, 'missing': missing, 'liveMap': LIVE_MAP,
             'built': datetime.datetime.now(datetime.timezone.utc).isoformat()}
     if args.encrypt:
+        built = data['built']
         data = encrypt(data, password)
+        data['built'] = built  # shown on the password screen so a stale copy is easy to spot
     html = open(TEMPLATE).read().replace('/*__DATA__*/null', json.dumps(data, ensure_ascii=False))
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     open(args.out, 'w').write(html)

@@ -102,10 +102,12 @@
   <form id="unlock">
     <h1>All Houses</h1>
     <p>Enter the map password to see your leads.</p>
-    <input id="pw" type="password" autocomplete="current-password" placeholder="Password" required>
+    <input id="pw" type="password" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Password" required>
+    <label><input id="show" type="checkbox"> Show password</label>
     <label><input id="remember" type="checkbox" checked> Remember on this device</label>
     <button type="submit">Open map</button>
     <div class="err" id="err"></div>
+    <p id="built"></p>
   </form>
 </div>
 <div class="app">
@@ -317,6 +319,8 @@ if (!PAYLOAD.ct) {
   let saved = null;
   try { saved = localStorage.getItem('mapPassword'); } catch (e) { /* storage blocked */ }
   const ask = () => { $('lock').hidden = false; $('pw').focus(); };
+  $('show').onchange = (e) => { $('pw').type = e.target.checked ? 'text' : 'password'; };
+  if (PAYLOAD.built) $('built').textContent = 'Map updated ' + new Date(PAYLOAD.built).toLocaleString();
   saved ? unlockWith(saved, true).catch(ask) : ask();
   $('unlock').onsubmit = (e) => {
     e.preventDefault();
