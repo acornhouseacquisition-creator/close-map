@@ -325,7 +325,7 @@ if (!PAYLOAD.ct) {
   $('unlock').onsubmit = (e) => {
     e.preventDefault();
     $('err').textContent = '';
-    unlockWith($('pw').value, $('remember').checked).catch(() => { $('err').textContent = 'Wrong password. Try again.'; });
+    unlockWith($('pw').value.trim(), $('remember').checked).catch(() => { $('err').textContent = 'Wrong password. Try again.'; });
   };
 }
 </script>

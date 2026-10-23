@@ -76,7 +76,7 @@ def main():
     ap.add_argument('--out', default=os.path.join(OUT_DIR, 'all-houses.html'))
     ap.add_argument('--encrypt', action='store_true', help='lock with the MAP_PASSWORD environment variable')
     args = ap.parse_args()
-    password = os.environ.get('MAP_PASSWORD', '')
+    password = os.environ.get('MAP_PASSWORD', '').strip()  # a stray space or line break must not change the password
     if args.encrypt and len(password) < 12:
         # "::error::" makes GitHub show the message on the build's summary page
         raise SystemExit('::error::The MAP_PASSWORD secret is missing or shorter than 12 characters: '
